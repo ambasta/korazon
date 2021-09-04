@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.20 FATAL_ERROR)
 
-project("" DESCRIPTION "" HOMEPAGE_URL "" LANGUAGES CXX)
+project(
+  "korazon" DESCRIPTION "Pipewire volume control" HOMEPAGE_URL
+  "github.com/ambasta/korazon" LANGUAGES CXX
+)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/")
 
@@ -121,4 +124,20 @@ install(
   runtime
 )
 
+find_package(spdlog REQUIRED)
+find_package(fmt REQUIRED)
+find_package(PipeWire REQUIRED)
+find_package(systemd REQUIRED)
+find_package(nlohmann_json REQUIRED)
+find_package(Threads REQUIRED)
+
+# include(ExternalProject)
+# ExternalProject_Add(patterns
+#     PREFIX mpark
+#     SOURCE_DIR ${PROJECT_SOURCE_DIR}/third_party/patterns
+#     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/third_party/)
+
+add_subdirectory(include)
 add_subdirectory(src)
+
+# add_dependencies(${PROJECT_NAME} patterns)

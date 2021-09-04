@@ -42,3 +42,6 @@ compile_commands.json
 CTestTestfile.cmake
 _deps
 build/
+
+# Ignore clangd cache
+.cache/
