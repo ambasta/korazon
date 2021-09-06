@@ -77,7 +77,9 @@ public:
 
   bool revert_default();
 
-  bool muteOutput(bool);
+  bool mute_output(bool);
+
+  bool set_volume(float);
 
   std::unordered_set<std::string> current_output_applications();
   std::unordered_set<std::string> current_passedthrough();

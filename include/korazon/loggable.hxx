@@ -4,10 +4,11 @@
 #include <memory>
 #include <spdlog/common.h>
 #include <spdlog/logger.h>
+#include <string>
 
 class Loggable {
 protected:
-  virtual const std::string &name() const = 0;
+  virtual std::string name() const = 0;
 
   void setup(const spdlog::level::level_enum &level = spdlog::level::info);
 

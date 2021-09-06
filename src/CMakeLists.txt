@@ -1,6 +1,6 @@
 add_executable(
   ${PROJECT_NAME} main.cxx loggable.cxx pipewire/details.cxx
-  pipewire.cxx
+  korazon.cxx
 )
 # target_include_directories(
 #   ${PROJECT_NAME} PUBLIC

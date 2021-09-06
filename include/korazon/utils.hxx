@@ -4,7 +4,8 @@
 #include <functional>
 #include <string>
 
-constexpr inline auto operator""_sh(const char *string, size_t length) {
-  return std::hash<std::string>{}(std::string(string, length));
+template <typename Functor, typename... Args>
+constexpr inline auto wrap_callback(Functor functor, Args &&...args) {
+  return functor(std::forward(args)...);
 }
 #endif

@@ -1,14 +1,22 @@
 // #include "mpark/patterns/match.hpp"
-#include <korazon/pipewire.hxx>
 // #include <mpark/patterns.hpp>
+#include <korazon/pipewire.hxx>
 #include <nlohmann/json.hpp>
 #include <pipewire/context.h>
 #include <pipewire/core.h>
 #include <pipewire/impl-metadata.h>
 #include <pipewire/main-loop.h>
+#include <pipewire/node.h>
 #include <pipewire/pipewire.h>
 #include <pipewire/proxy.h>
+#include <spa/param/param.h>
+#include <spa/param/props.h>
+#include <spa/pod/builder.h>
+#include <spa/pod/iter.h>
+#include <spa/pod/pod.h>
+#include <spa/pod/vararg.h>
 #include <spa/utils/dict.h>
+#include <spa/utils/type.h>
 #include <spdlog/spdlog.h>
 
 Pipewire::Pipewire() = default;
@@ -95,9 +103,9 @@ bool Pipewire::setup() {
   sync();
 
   if (m_default_speakers.empty()) {
-    logger()->warn("Failed to retrieve default speakers");
+    logger()->error("Failed to retrieve default speakers");
+    return false;
   }
-  return create_null_source();
   return true;
 }
 
@@ -116,15 +124,6 @@ void Pipewire::on_global_added(void *data, uint32_t id,
   auto *client = reinterpret_cast<Pipewire *>(data);
 
   if (client and properties) {
-    /*
-    using namespace mpark::patterns;
-
-    match(type)(
-        pattern(anyof(PW_TYPE_INTERFACE_Core)) =
-            [] { spdlog::get("PWE")->info("Core matched"); },
-        pattern(anyof(PW_TYPE_INTERFACE_Metadata)) =
-            [] { spdlog::get("PWE")->info("Metadata matched"); });
-    */
 
     if (strcmp(type, PW_TYPE_INTERFACE_Core) == 0) {
       spa_hook listener;
@@ -184,12 +183,13 @@ void Pipewire::on_global_added(void *data, uint32_t id,
     }
   }
 
-  /*
   if (strcmp(type, PW_TYPE_INTERFACE_Node) == 0) {
     const auto *name = spa_dict_lookup(properties, PW_KEY_NODE_NAME);
 
-    if (name and strstr(name, "kontol"))
+    if (name and strstr(name, "PipeWireWrapper"))
       return;
+
+    client->logger()->error("Name: {}", name);
 
     Node node;
     node.id() = id;
@@ -210,7 +210,7 @@ void Pipewire::on_global_added(void *data, uint32_t id,
         client->m_registry, id, type, PW_VERSION_NODE, sizeof(Pipewire)));
 
     if (bound_node) {
-      auto noderef = client->m_nodes.write();
+      { client->m_nodes.write()->emplace(id, node); }
       pw_node_add_listener(bound_node, &listener, &events, client);
       client->sync();
       spa_hook_remove(&listener);
@@ -238,10 +238,7 @@ void Pipewire::on_global_added(void *data, uint32_t id,
         client->m_registry, id, type, version, sizeof(Pipewire)));
 
     if (bound_port) {
-      {
-        auto write_access = client->m_ports.write();
-        write_access->emplace(id, port);
-      }
+      { client->m_ports.write()->emplace(id, port); }
       pw_port_add_listener(bound_port, &listener, &events, client);
       client->sync();
       spa_hook_remove(&listener);
@@ -264,7 +261,6 @@ void Pipewire::on_global_added(void *data, uint32_t id,
       }
     }
   }
-  */
 }
 
 void Pipewire::on_global_removed(void *data, uint32_t id) {
@@ -314,7 +310,7 @@ bool Pipewire::create_null_source() {
   link_event.error = [](void *data, [[maybe_unused]] int sequence,
                         [[maybe_unused]] int result, const char *message) {
     spdlog::get("PipeWireWrapper")
-        ->error("Failed to create null sink: {}", message);
+        ->error("Failed to create null source: {}", message);
     *reinterpret_cast<bool *>(data) = false;
   };
   pw_proxy_add_listener(proxy, &listener, &link_event, &success);
@@ -354,6 +350,13 @@ void Pipewire::on_node_info(const pw_node_info *info) {
   }
 
   if (node) {
+    const spa_dict_item *item;
+
+    for ((item) = info->props->items;
+         (item) < &(info->props)->items[(info->props)->n_items]; (item)++)
+      logger()->info("Node {}: Item Key: {} Value: {}", info->id, item->key,
+                     item->value);
+
     if (const auto *pid =
             spa_dict_lookup(info->props, "application.process.id");
         pid)
@@ -407,4 +410,74 @@ void Pipewire::on_port_info(const pw_port_info *info) {
     if (const auto *alias = spa_dict_lookup(info->props, "port.alias"); alias)
       port->alias() = std::string(alias);
   }
+}
+
+bool Pipewire::mute_output(bool state) {
+  auto copy = m_nodes.copy();
+
+  for (const auto &node : copy) {
+    if (node.second.raw_name() == m_default_speakers) {
+      auto *bound_node = reinterpret_cast<pw_node *>(
+          pw_registry_bind(m_registry, node.second.id(), PW_TYPE_INTERFACE_Node,
+                           PW_VERSION_NODE, sizeof(Pipewire)));
+
+      if (bound_node) {
+        char buffer[1024];
+        spa_pod_builder builder;
+        spa_pod_builder_init(&builder, buffer, sizeof(buffer));
+
+        spa_pod_frame frame[1];
+        spa_pod *parameters{};
+
+        spa_pod_builder_push_object(&builder, &frame[0], SPA_TYPE_OBJECT_Props,
+                                    SPA_PARAM_Props);
+        spa_pod_builder_add(&builder, SPA_PROP_mute, SPA_POD_Bool(state), 0);
+
+        parameters =
+            static_cast<spa_pod *>(spa_pod_builder_pop(&builder, &frame[0]));
+
+        if (pw_node_set_param(bound_node, SPA_PARAM_Props, 0, parameters) < 0)
+          return false;
+        pw_proxy_destroy(reinterpret_cast<pw_proxy *>(bound_node));
+        sync();
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool Pipewire::set_volume(float volume) {
+  auto copy = m_nodes.copy();
+
+  for (const auto &node : copy) {
+    if (node.second.raw_name() == m_default_speakers) {
+      auto *bound_node = reinterpret_cast<pw_node *>(
+          pw_registry_bind(m_registry, node.second.id(), PW_TYPE_INTERFACE_Node,
+                           PW_VERSION_NODE, sizeof(Pipewire)));
+
+      if (bound_node) {
+        char buffer[1024];
+        spa_pod_builder builder;
+        spa_pod_builder_init(&builder, buffer, sizeof(buffer));
+
+        spa_pod_frame frame[1];
+        spa_pod *parameters{};
+
+        spa_pod_builder_push_object(&builder, &frame[0], SPA_TYPE_OBJECT_Props,
+                                    SPA_PARAM_Props);
+        spa_pod_builder_add(&builder, SPA_PROP_volume, SPA_POD_Float(volume),
+                            0);
+        parameters =
+            static_cast<spa_pod *>(spa_pod_builder_pop(&builder, &frame[0]));
+
+        if (pw_node_set_param(bound_node, SPA_PARAM_Props, 0, parameters) < 0)
+          return false;
+        pw_proxy_destroy(reinterpret_cast<pw_proxy *>(bound_node));
+        sync();
+        return true;
+      }
+    }
+  }
+  return false;
 }
