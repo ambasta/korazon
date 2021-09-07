@@ -131,6 +131,24 @@ find_package(systemd REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(Threads REQUIRED)
 
+set(CURSES_NEED_NCURSES TRUE)
+find_package(Curses REQUIRED)
+
+if(CURSES_FOUND AND NOT TARGET Curses::Curses)
+  add_library(Curses::Curses UNKNOWN IMPORTED)
+  set_target_properties(
+    Curses::Curses
+    PROPERTIES
+    IMPORTED_LOCATION "${CURSES_LIBRARIES}"
+    INTERFACE_INCLUDE_DIRECTORIES "${CURSES_INCLUDE_DIRS}"
+  )
+endif()
+
+
+if(ANAL)
+  add_compile_options("-stdlib=libc++")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++ -lc++abi")
+endif()
 # include(ExternalProject)
 # ExternalProject_Add(patterns
 #     PREFIX mpark

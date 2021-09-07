@@ -3,11 +3,10 @@
 #include <spdlog/async.h>
 #include <spdlog/async_logger.h>
 #include <spdlog/common.h>
-#include <spdlog/logger.h>
-#include <spdlog/sinks/base_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/systemd_sink.h>
 #include <spdlog/spdlog.h>
+#include <vector>
 
 Loggable::Loggable() = default;
 

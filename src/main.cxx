@@ -1,11 +1,14 @@
-#include <iostream>
+#include <cstdint>
 #include <korazon/korazon.hxx>
+#include <korazon/pipewire.hxx>
 #include <spdlog/async.h>
 #include <thread>
 
-int main(int argc, char *argv[]) {
-  spdlog::init_thread_pool(8192, std::thread::hardware_concurrency());
-  Korazon client;
+constexpr uint32_t MAX_QUEUE_SIZE = 8192;
+
+int main([[maybe_unused]] int argc, [[maybe_unused]] char *argv[]) {
+  spdlog::init_thread_pool(MAX_QUEUE_SIZE, std::thread::hardware_concurrency());
+  Pipewire client;
   client.setup();
   client.show();
   /*
