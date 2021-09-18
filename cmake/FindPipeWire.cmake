@@ -47,6 +47,7 @@ find_package_handle_standard_args(
 
 if(PipeWire_FOUND AND NOT TARGET PipeWire::PipeWire)
   add_library(PipeWire::PipeWire UNKNOWN IMPORTED)
+  message("Setting location to ${PipeWire_LIBRARIES}")
   set_target_properties(
     PipeWire::PipeWire
     PROPERTIES

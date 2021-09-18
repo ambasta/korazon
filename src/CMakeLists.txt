@@ -4,6 +4,7 @@ add_executable(
   configuration.cxx
   pipewire.cxx
   korazon.cxx
+  application.cxx
   main.cxx
 )
 target_include_directories(${PROJECT_NAME} PUBLIC ${CURSES_INCLUDE_DIRS})
@@ -19,6 +20,7 @@ target_link_libraries(
   nlohmann_json::nlohmann_json
   spdlog::spdlog
   systemd::systemd
+  Gtkmm::Gtkmm
   Threads::Threads
   ${CURSES_LIBRARIES}
 )
